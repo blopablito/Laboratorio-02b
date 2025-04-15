@@ -1,1 +1,94 @@
-a
+#include <iostream>
+#include <bitset>
+#include <cmath>
+#include <cstdint>
+
+using namespace std;
+
+union UnionFlotante {
+    float valor;
+    uint32_t bits;
+};
+
+void mostrarBits(uint32_t numero, string nombre) {
+    cout << nombre << ": ";
+    for (int i = 31; i >= 0; i--) {
+        cout << ((numero >> i) & 1);
+        if (i % 8 == 0) cout << " ";
+    }
+    cout << endl;
+}
+
+float armarFloat(uint32_t signo, uint32_t exponente, uint32_t mantisa) {
+    uint32_t total = (signo << 31) | (exponente << 23) | (mantisa & 0x7FFFFF);
+    UnionFlotante temp;
+    temp.bits = total;
+    return temp.valor;
+}
+
+float dividirFloat(float n1, float n2) {
+    UnionFlotante f1, f2;
+    f1.valor = n1;
+    f2.valor = n2;
+
+    if (n1 == 0.0f) return 0.0f;
+    if (n2 == 0.0f) return INFINITY;
+
+    uint32_t signo1 = (f1.bits >> 31) & 1;
+    uint32_t exp1 = (f1.bits >> 23) & 0xFF;
+    uint32_t mantisa1 = f1.bits & 0x7FFFFF;
+
+    uint32_t signo2 = (f2.bits >> 31) & 1;
+    uint32_t exp2 = (f2.bits >> 23) & 0xFF;
+    uint32_t mantisa2 = f2.bits & 0x7FFFFF;
+
+    mantisa1 |= 1 << 23;
+    mantisa2 |= 1 << 23;
+
+    int nuevoExp = (int)exp1 - (int)exp2 + 127;
+
+    if (nuevoExp >= 255) {
+        cout << "Overflow en exponente" << endl;
+        return INFINITY;
+    }
+    if (nuevoExp <= 0) {
+        cout << "Underflow en exponente" << endl;
+        return 0.0f;
+    }
+
+    uint32_t resultadoMantisa = (uint64_t(mantisa1) << 23) / mantisa2;
+
+    while ((resultadoMantisa & (1 << 23)) == 0 && nuevoExp > 0) {
+        resultadoMantisa <<= 1;
+        nuevoExp--;
+    }
+
+    resultadoMantisa &= 0x7FFFFF;
+    uint32_t signoFinal = signo1 ^ signo2;
+
+    return armarFloat(signoFinal, nuevoExp, resultadoMantisa);
+}
+
+int main() {
+    float num1, num2;
+    cout << "Ingresa el primer número: ";
+    cin >> num1;
+    cout << "Ingresa el segundo número: ";
+    cin >> num2;
+
+    float emulado = dividirFloat(num1, num2);
+    float real = num1 / num2;
+
+    UnionFlotante u1, u2;
+    u1.valor = emulado;
+    u2.valor = real;
+
+    cout << "\n--- Comparación ---" << endl;
+    cout << "Resultado emulado : " << emulado << endl;
+    cout << "Resultado directo : " << real << endl;
+
+    mostrarBits(u1.bits, "Bits emulado");
+    mostrarBits(u2.bits, "Bits directo");
+
+    return 0;
+}
